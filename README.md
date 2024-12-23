@@ -8,11 +8,7 @@ Below is an example of an FFmpeg command for creating a video from a sequence of
 ## Command
 
 ```bash
-$ ffmpeg -framerate 60 -start_number 2086939 -i "Desert_A.%07d.png" \
--c:v libx264 -crf 18 -preset veryslow -pix_fmt yuv444p \
--movflags +faststart \
--vf "unsharp=5:5:1.0:5:5:0.0, eq=contrast=1.2" \
-output.mp4
+$ ffmpeg -framerate 60 -start_number 2086939 -i "Desert_A.%07d.png" -c:v libx264 -crf 18 -preset veryslow -pix_fmt yuv444p -movflags +faststart -vf "unsharp=5:5:1.0:5:5:0.0, eq=contrast=1.2" output.mp4
 ```
 
 ## Breakdown of the Command
