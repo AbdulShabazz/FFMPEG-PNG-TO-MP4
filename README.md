@@ -142,14 +142,14 @@ This script composites Unreal Engine render passes using FFmpeg,
 handling missing passes and missing frames.
 
 Usage:
-    python composite_passes.py --output output_composite.mp4 --framerate 30
+    python composite_passes.py --output 'output_composite.mp4' --framerate 120 --ext 'png' --start_index 1481294 --last_index 1488519 --resolution '1920x1080'
 
 Optional Arguments:
     --output: Name of the output composite video file (default: output_composite.mp4)
-    --framerate: Frame rate of the input and output videos (default: 30)
+    --framerate: Frame rate of the input and output videos (default: 120)
     --resolution: Resolution of the blank frames (default: 1920x1080)
     --passes: Comma-separated list of passes with blend modes in the format PassName:BlendMode
-             Example: Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen,PathTracer:overlay,ReflectionsOnly:screen
+             Example: "Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen,PathTracer:overlay,ReflectionsOnly:screen"
              If not provided, defaults are used.
 """
 
@@ -158,55 +158,62 @@ import sys
 import glob
 import subprocess
 import argparse
+from pathlib import Path
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Composite Unreal Engine render passes using FFmpeg.")
-    parser.add_argument('--output', type=str, default='output_composite.mp4', help='Name of the output composite video file.')
-    parser.add_argument('--framerate', type=int, default=30, help='Frame rate of the input and output videos.')
-    parser.add_argument('--resolution', type=str, default='1920x1080', help='Resolution of the blank frames (e.g., 1920x1080).')
-    parser.add_argument('--passes', type=str, default='', help='Comma-separated list of passes with blend modes in the format PassName:BlendMode. Example: Unlit:normal,LightingOnly:multiply')
+    parser.add_argument('--output', type=str, default='output_composite.mp4', help='Name of the output composite video file (e.g. "output_composite.mp4").')  
+    parser.add_argument('--ext', type=str, default='png', help='File extension type of the input sequence for the output composite video file (e.g., "png").')
+    parser.add_argument('--start_index', type=int, default=1, help='Start index for the composite sequence (e.g., 1).')  
+    parser.add_argument('--last_index', type=int, default=1, help='Last index for the composite sequence (e.g., 1)')
+    parser.add_argument('--framerate', type=int, default=120, help='[Optional] Frame rate of the input and output videos (e.g., 60).')
+    parser.add_argument('--crf', type=int, default=0, help='[Optional] output video compression ratio factor (i.e., strength) (e.g., --crf 0). Valid Range: 0 to 51')
+    parser.add_argument('--pix_fmt', type=str, default='yuv420p10le', help='[Optional] Defines how pixel data is stored and represented in video frames (e.g., --pix_fmt yuv420p10le). Valid Range: yuv420p yuv422p yuv44p rgb24 yuva420p yuv420p10le')
+    parser.add_argument('--resolution', type=str, default='1920x1080', help='[Optional] Resolution of the blank frames (e.g., "1920x1080").')
+    parser.add_argument('--passes', type=str, default='', help='[Optional] ffmpeg supported, comma-separated list of passes with blend modes in the format PassName:BlendMode. Example: "Unlit:normal,LightingOnly:multiply"')
     return parser.parse_args()
 
-def get_available_passes(passes_config):
+def get_available_passes(current_dir,passes_config,start_index,file_ext,last_frame):
     available_passes = {}
     for pass_conf in passes_config:
         pass_name, blend_mode = pass_conf.split(':')
         # Check if at least one frame exists for the pass
-        first_frame = f"{pass_name}_0001.png"
+        padded_num = str(start_index).zfill(len(str(last_frame)))
+        first_frame = f"{current_dir}.{pass_name}.{padded_num}.{file_ext}"
         if os.path.exists(first_frame):
             available_passes[pass_name] = blend_mode
-            print(f"Pass '{pass_name}' is available with blend mode '{blend_mode}'.")
+            print(f"Render Pass '{pass_name}' is available with blend mode '{blend_mode}'.")
         else:
-            print(f"Pass '{pass_name}' is missing. It will be skipped.")
+            print(f"Render Pass '{pass_name}' ({first_frame}) is missing. It will be skipped.")
     return available_passes
 
-def get_all_frames(pass_name):
-    pattern = f"{pass_name}_*.png"
+def get_all_frames(current_dir,pass_name,file_ext):
+    pattern = f"{current_dir}.{pass_name}.*.{file_ext}"
     frames = sorted(glob.glob(pattern))
     return frames
 
-def extract_frame_number(filename, pass_name):
+def extract_frame_number(current_dir,filename, pass_name,file_ext):
     basename = os.path.basename(filename)
-    number_part = basename.replace(pass_name + '_', '').replace('.png', '')
+    number_part = basename.replace(f'{current_dir}.{pass_name}.', '').replace(f'.{file_ext}', '')
     try:
         return int(number_part)
     except ValueError:
         return None
 
-def fill_missing_frames(pass_name, max_frame, resolution):
-    frames = get_all_frames(pass_name)
+def fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolution, file_ext):
+    frames = get_all_frames(current_dir,pass_name,file_ext)
     existing_frames = set()
     for f in frames:
-        num = extract_frame_number(f, pass_name)
+        num = extract_frame_number(current_dir,f, pass_name,file_ext)
         if num:
             existing_frames.add(num)
     print(f"Processing Pass: {pass_name}")
     prev_frame = None
-    for i in range(1, max_frame + 1):
+    for i in range(start_index, last_frame + 1):
         if i in existing_frames:
-            prev_frame = f"{pass_name}_{i:04d}.png"
+            prev_frame = f"{current_dir}.{pass_name}.{i:07}.{file_ext}"
         else:
-            target_frame = f"{pass_name}_{i:04d}.png"
+            target_frame = f"{current_dir}.{pass_name}.{i:07d}.{file_ext}"
             if prev_frame and os.path.exists(prev_frame):
                 # Duplicate previous frame
                 subprocess.run(['copy', '/Y', prev_frame, target_frame], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -250,6 +257,27 @@ def main():
     global args
     args = parse_arguments()
 
+    if args.ext:
+        file_ext = args.ext.strip("'\'").lower()
+    else:
+        print("Error: Sequence file extension (e.g., --ext png) not provided.")
+        sys.exit(1)
+    
+    if args.start_index:
+        start_index = int(args.start_index)
+    else:
+        print("Error: Sequence start index (e.g., --start_index 1481294) not provided.")
+        sys.exit(1)
+
+    if args.last_index:
+        last_frame = args.last_index
+    else:
+        print("Error: Sequence start index (e.g., --last_index 1481294) not provided.")
+        sys.exit(1)
+
+    resolution = args.resolution
+    crf = args.crf
+
     # Default passes and blend modes if not provided
     if args.passes:
         passes_config = args.passes.split(',')
@@ -262,17 +290,19 @@ def main():
             "ReflectionsOnly:screen"
         ]
 
-    available_passes = get_available_passes(passes_config)
+    current_dir = Path.cwd().name
+
+    available_passes = get_available_passes(current_dir,passes_config,start_index,file_ext,last_frame)
 
     if 'Unlit' not in available_passes:
         print("Error: 'Unlit' pass is required as the base layer but is missing.")
         sys.exit(1)
 
-    # Determine the maximum number of frames across all available passes
+    # Determine the maximum number of frames across all passes
     max_frame = 0
     for pass_name in available_passes:
-        frames = get_all_frames(pass_name)
-        frame_numbers = [extract_frame_number(f, pass_name) for f in frames]
+        frames = get_all_frames(current_dir,pass_name,file_ext)
+        frame_numbers = [extract_frame_number(current_dir,f, pass_name,file_ext) for f in frames]
         frame_numbers = [num for num in frame_numbers if num is not None]
         if frame_numbers:
             current_max = max(frame_numbers)
@@ -283,7 +313,7 @@ def main():
 
     # Fill missing frames for each available pass
     for pass_name in available_passes:
-        fill_missing_frames(pass_name, max_frame, args.resolution)
+        fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolution, file_ext)
 
     # Construct FFmpeg inputs
     ffmpeg_inputs = []
@@ -294,11 +324,13 @@ def main():
         "PathTracer",
         "ReflectionsOnly"
     ]
+    seq_len = len(str(max_frame))
+    # Unreal Engine image sequences usually include the name of the current directory folder...
     for pass_name in total_passes_ordered:
         if pass_name in available_passes:
             ffmpeg_inputs.extend([
                 "-framerate", str(args.framerate),
-                "-i", f"{pass_name}_%04d.png"
+                "-i", f"{current_dir}.{pass_name}.%0{seq_len}d.{file_ext}"
             ])
 
     # Construct filter_complex
@@ -313,7 +345,7 @@ def main():
     ] + ffmpeg_inputs + [
         '-filter_complex', filter_complex,
         '-map', '[final]',
-        '-c:v', 'libx264',
+        '-c:v', 'libx265',
         '-crf', str(args.crf),
         '-pix_fmt', args.pix_fmt,
         args.output
@@ -347,5 +379,5 @@ Optional arguments
 Custom passes
 
 ```
-python -m composite_passes --output final_video.mp4 --framerate 120 --passes Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen --ext png --start_index 1481294
+python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080
 ```
