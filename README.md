@@ -382,3 +382,6 @@ Custom passes
 ```
 python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080
 ```
+```
+python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 8798040 --last_index 8804833 --resolution 2160x1080
+```
