@@ -229,7 +229,7 @@ def fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolut
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 print(f"Created blank frame: {target_frame}")
 
-def construct_filter_complex(available_passes, total_passes_ordered):
+def construct_filter_complex(available_passes, total_passes_ordered, pix_fmt):
     """
     Constructs the filter_complex string based on available passes and their blend modes.
     Assumes 'Unlit' is the base layer.
@@ -249,7 +249,7 @@ def construct_filter_complex(available_passes, total_passes_ordered):
                 tmp_label = f"tmp{idx}"
                 filters.append(f"{current_output}[{pass_name.lower()}]blend=all_mode={blend_mode} [{tmp_label}];")
                 current_output = f"[{tmp_label}]"
-    filters.append(f"{current_output}format=yuv420p [final]")
+    filters.append(f"{current_output}format={pix_fmt} [final]")
     filter_complex = ' '.join(filters)
     return filter_complex
 
@@ -277,6 +277,7 @@ def main():
 
     resolution = args.resolution
     crf = args.crf
+    pix_fmt = args.pix_fmt
 
     # Default passes and blend modes if not provided
     if args.passes:
@@ -334,7 +335,7 @@ def main():
             ])
 
     # Construct filter_complex
-    filter_complex = construct_filter_complex(available_passes, total_passes_ordered)
+    filter_complex = construct_filter_complex(available_passes, total_passes_ordered, pix_fmt)
 
     print("Constructed filter_complex:")
     print(filter_complex)
