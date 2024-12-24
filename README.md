@@ -113,3 +113,239 @@ output.mp4
 - **`-pix_fmt yuv420p`**: Ensures better compatibility with most players.
 
 Feel free to adjust these parameters based on your specific needs and the desired balance between quality, encoding speed, and file size.
+
+## Python Script
+
+### Overview
+
+The Python script provides a more flexible and robust approach to handling missing passes and frames. It performs the following:
+
+**Detect Available Passes:** Identifies which render passes are present in the specified directory.
+* **Fill Missing Frames:** For each pass, it ensures that all frames are present by duplicating the previous frame or inserting a blank frame using FFmpeg.
+* **Construct FFmpeg Command:** Dynamically builds the FFmpeg command based on available passes and their blend modes.
+* **Execute FFmpeg:** Runs the FFmpeg command to generate the final composite video.
+
+**Prerequisites**
+
+* **Python Installed:** Ensure Python 3.x is installed on your system. You can download it from here.
+* **FFmpeg Installed:** As with the batch script, ensure FFmpeg is installed and added to the system's PATH.
+* **Python Libraries:** The script uses standard libraries (os, subprocess, glob). No additional installations are required.
+
+Consistent Naming Convention: Render passes should follow a naming pattern like `PassName_0001.png, PassName_0002.png`, etc.
+
+```python
+#!/usr/bin/env python3
+"""
+composite_passes.py
+
+This script composites Unreal Engine render passes using FFmpeg,
+handling missing passes and missing frames.
+
+Usage:
+    python composite_passes.py --output output_composite.mp4 --framerate 30
+
+Optional Arguments:
+    --output: Name of the output composite video file (default: output_composite.mp4)
+    --framerate: Frame rate of the input and output videos (default: 30)
+    --resolution: Resolution of the blank frames (default: 1920x1080)
+    --passes: Comma-separated list of passes with blend modes in the format PassName:BlendMode
+             Example: Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen,PathTracer:overlay,ReflectionsOnly:screen
+             If not provided, defaults are used.
+"""
+
+import os
+import sys
+import glob
+import subprocess
+import argparse
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Composite Unreal Engine render passes using FFmpeg.")
+    parser.add_argument('--output', type=str, default='output_composite.mp4', help='Name of the output composite video file.')
+    parser.add_argument('--framerate', type=int, default=30, help='Frame rate of the input and output videos.')
+    parser.add_argument('--resolution', type=str, default='1920x1080', help='Resolution of the blank frames (e.g., 1920x1080).')
+    parser.add_argument('--passes', type=str, default='', help='Comma-separated list of passes with blend modes in the format PassName:BlendMode. Example: Unlit:normal,LightingOnly:multiply')
+    return parser.parse_args()
+
+def get_available_passes(passes_config):
+    available_passes = {}
+    for pass_conf in passes_config:
+        pass_name, blend_mode = pass_conf.split(':')
+        # Check if at least one frame exists for the pass
+        first_frame = f"{pass_name}_0001.png"
+        if os.path.exists(first_frame):
+            available_passes[pass_name] = blend_mode
+            print(f"Pass '{pass_name}' is available with blend mode '{blend_mode}'.")
+        else:
+            print(f"Pass '{pass_name}' is missing. It will be skipped.")
+    return available_passes
+
+def get_all_frames(pass_name):
+    pattern = f"{pass_name}_*.png"
+    frames = sorted(glob.glob(pattern))
+    return frames
+
+def extract_frame_number(filename, pass_name):
+    basename = os.path.basename(filename)
+    number_part = basename.replace(pass_name + '_', '').replace('.png', '')
+    try:
+        return int(number_part)
+    except ValueError:
+        return None
+
+def fill_missing_frames(pass_name, max_frame, resolution):
+    frames = get_all_frames(pass_name)
+    existing_frames = set()
+    for f in frames:
+        num = extract_frame_number(f, pass_name)
+        if num:
+            existing_frames.add(num)
+    print(f"Processing Pass: {pass_name}")
+    prev_frame = None
+    for i in range(1, max_frame + 1):
+        if i in existing_frames:
+            prev_frame = f"{pass_name}_{i:04d}.png"
+        else:
+            target_frame = f"{pass_name}_{i:04d}.png"
+            if prev_frame and os.path.exists(prev_frame):
+                # Duplicate previous frame
+                subprocess.run(['copy', '/Y', prev_frame, target_frame], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print(f"Filled missing frame: {target_frame} with {prev_frame}")
+            else:
+                # Create a blank frame using FFmpeg
+                subprocess.run([
+                    'ffmpeg', '-f', 'lavfi',
+                    '-i', f'color=black:s={resolution}:d=1/{args.framerate}',
+                    '-vframes', '1',
+                    target_frame,
+                    '-y'
+                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print(f"Created blank frame: {target_frame}")
+
+def construct_filter_complex(available_passes, total_passes_ordered):
+    """
+    Constructs the filter_complex string based on available passes and their blend modes.
+    Assumes 'Unlit' is the base layer.
+    """
+    filters = []
+    input_labels = []
+    tmp_labels = []
+
+    for idx, pass_name in enumerate(total_passes_ordered):
+        if pass_name in available_passes:
+            blend_mode = available_passes[pass_name]
+            if pass_name.lower() == 'unlit':
+                filters.append(f"[{idx}:v]format=rgba, setpts=PTS-STARTPTS [base];")
+                current_output = "[base]"
+            else:
+                filters.append(f"[{idx}:v]format=rgba, setpts=PTS-STARTPTS [{pass_name.lower()}];")
+                tmp_label = f"tmp{idx}"
+                filters.append(f"{current_output}[{pass_name.lower()}]blend=all_mode={blend_mode} [{tmp_label}];")
+                current_output = f"[{tmp_label}]"
+    filters.append(f"{current_output}format=yuv420p [final]")
+    filter_complex = ' '.join(filters)
+    return filter_complex
+
+def main():
+    global args
+    args = parse_arguments()
+
+    # Default passes and blend modes if not provided
+    if args.passes:
+        passes_config = args.passes.split(',')
+    else:
+        passes_config = [
+            "Unlit:normal",
+            "LightingOnly:multiply",
+            "DetailLightingOnly:screen",
+            "PathTracer:overlay",
+            "ReflectionsOnly:screen"
+        ]
+
+    available_passes = get_available_passes(passes_config)
+
+    if 'Unlit' not in available_passes:
+        print("Error: 'Unlit' pass is required as the base layer but is missing.")
+        sys.exit(1)
+
+    # Determine the maximum number of frames across all available passes
+    max_frame = 0
+    for pass_name in available_passes:
+        frames = get_all_frames(pass_name)
+        frame_numbers = [extract_frame_number(f, pass_name) for f in frames]
+        frame_numbers = [num for num in frame_numbers if num is not None]
+        if frame_numbers:
+            current_max = max(frame_numbers)
+            if current_max > max_frame:
+                max_frame = current_max
+
+    print(f"Total Frames Detected: {max_frame}")
+
+    # Fill missing frames for each available pass
+    for pass_name in available_passes:
+        fill_missing_frames(pass_name, max_frame, args.resolution)
+
+    # Construct FFmpeg inputs
+    ffmpeg_inputs = []
+    total_passes_ordered = [
+        "Unlit",
+        "LightingOnly",
+        "DetailLightingOnly",
+        "PathTracer",
+        "ReflectionsOnly"
+    ]
+    for pass_name in total_passes_ordered:
+        if pass_name in available_passes:
+            ffmpeg_inputs.extend([
+                "-framerate", str(args.framerate),
+                "-i", f"{pass_name}_%04d.png"
+            ])
+
+    # Construct filter_complex
+    filter_complex = construct_filter_complex(available_passes, total_passes_ordered)
+
+    print("Constructed filter_complex:")
+    print(filter_complex)
+
+    # Construct the final FFmpeg command
+    ffmpeg_command = [
+        'ffmpeg'
+    ] + ffmpeg_inputs + [
+        '-filter_complex', filter_complex,
+        '-map', '[final]',
+        '-c:v', 'libx264',
+        '-crf', str(args.crf),
+        '-pix_fmt', args.pix_fmt,
+        args.output
+    ]
+
+    print("Running FFmpeg command...")
+    print(' '.join(ffmpeg_command))
+
+    # Execute FFmpeg
+    subprocess.run(ffmpeg_command)
+
+    print(f"Composite video created as {args.output}")
+
+if __name__ == "__main__":
+    main()
+
+```
+
+Run the script
+
+```
+python composite_passes.py --output output_composite.mp4 --framerate 30
+```
+
+Optional arguments
+
+```
+--passes Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen,PathTracer:overlay,ReflectionsOnly:screen
+```
+
+Custom passes
+
+```
+python composite_passes.py --output final_video.mp4 --framerate 60 --passes Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen
+```
