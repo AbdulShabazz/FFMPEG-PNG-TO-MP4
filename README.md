@@ -306,7 +306,7 @@ def main():
         frame_numbers = [extract_frame_number(current_dir,f, pass_name,file_ext) for f in frames]
         frame_numbers = [num for num in frame_numbers if num is not None]
         if frame_numbers:
-            current_max = max(frame_numbers)
+            current_max = len(frame_numbers)
             if current_max > max_frame:
                 max_frame = current_max
 
