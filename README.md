@@ -347,5 +347,5 @@ Optional arguments
 Custom passes
 
 ```
-python composite_passes.py --output final_video.mp4 --framerate 60 --passes Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen
+python -m composite_passes --output final_video.mp4 --framerate 120 --passes Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen --ext png --start_index 1481294
 ```
