@@ -8,7 +8,7 @@ handling missing passes and missing frames.
 Usage:
     python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080
     python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 2160x1080
-    python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 4096x2048 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,Reflections:overlay
+    python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 4096x2048 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply #ReflectionsOnly:overlay
 
 Optional Arguments:
     --output: Name of the output composite video file (default: output_composite.mp4)
