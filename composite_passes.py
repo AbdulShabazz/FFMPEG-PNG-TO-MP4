@@ -8,7 +8,7 @@ handling missing passes and missing frames.
 Usage:
     python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080
     python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 2160x1080
-    python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 4096x2048 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply #ReflectionsOnly:overlay
+    python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 4096x2048 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,ReflectionsOnly:overlay
 
 Optional Arguments:
     --output: Name of the output composite video file (default: output_composite.mp4)
@@ -224,12 +224,16 @@ def main():
         'ffmpeg'
     ] + ffmpeg_inputs
 
+    if len(available_passes) > 1:
+        ffmpeg_command.extend([
+        '-filter_complex', f'"{filter_complex}"',
+        '-map', '"[final]"',
+     ])
+
     if len(gpu) > 0:
         print("\nGPU Processing enabled\n")
         pix_fmt = "p010le"
         ffmpeg_command.extend([
-            '-filter_complex', f'"{filter_complex}"',
-            '-map', '"[final]"',
             '-c:v', 'hevc_nvenc',
             '-preset', 'slow',
             '-qp','0',
@@ -248,8 +252,6 @@ def main():
         ])
     else:
         ffmpeg_command.extend([
-            '-filter_complex', f'"{filter_complex}"',
-            '-map', '"[final]"',
             '-c:v', 'libx265',
             '-crf', crf,
             '-pix_fmt', pix_fmt,
