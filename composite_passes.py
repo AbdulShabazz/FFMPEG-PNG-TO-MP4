@@ -7,6 +7,8 @@ handling missing passes and missing frames.
 
 Usage:
     python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080
+    python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 2160x1080
+    python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 2160x1080 --passes PathTracer:normal,Unlit:multiply
 
 Optional Arguments:
     --output: Name of the output composite video file (default: output_composite.mp4)
@@ -99,21 +101,23 @@ def construct_filter_complex(available_passes, total_passes_ordered, pix_fmt, re
     Constructs the filter_complex string based on available passes and their blend modes.
     Assumes 'Unlit' is the base layer.
     """
+    idx = 0
     filters = []
     input_labels = []
     tmp_labels = []
 
-    for idx, pass_name in enumerate(total_passes_ordered):
+    for _, pass_name in enumerate(total_passes_ordered):
         if pass_name in available_passes:
-            blend_mode = available_passes[pass_name]
-            if pass_name.lower() == 'unlit':
+            blend_mode = available_passes[pass_name]  
+            if idx < 1:
                 filters.append(f"[{idx}:v]format={pix_fmt}, scale={resolution}, setpts=PTS-STARTPTS [base];")
                 current_output = "[base]"
             else:
                 filters.append(f"[{idx}:v]format={pix_fmt}, scale={resolution}, setpts=PTS-STARTPTS [{pass_name.lower()}];")
                 tmp_label = f"tmp{idx}"
                 filters.append(f"{current_output}[{pass_name.lower()}]blend=all_mode={blend_mode} [{tmp_label}];")
-                current_output = f"[{tmp_label}]"
+                current_output = f"[{tmp_label}]" 
+            idx += 1
     filters.append(f"{current_output}format={pix_fmt} [final]")
     filter_complex = ' '.join(filters)
     return filter_complex
@@ -167,9 +171,9 @@ def main():
 
     available_passes = get_available_passes(current_dir,passes_config,start_index_z,file_ext,last_frame_z)
 
-    if 'Unlit' not in available_passes:
+    """ if 'Unlit' not in available_passes:
         print("Error: 'Unlit' pass is required as the base layer but is missing.")
-        sys.exit(1)
+        sys.exit(1) """
 
     # Determine the maximum number of frames across all passes
     max_frame = 0
@@ -230,15 +234,13 @@ def main():
             '-pix_fmt', pix_fmt,
             '-profile:v', 'main10',
             '-colorspace', 'bt2020nc',
-            #'-color_primaries', 'bt2020',
-            #'-color_trc', 'smpte2084',
-            #'-color_range', '2',
+            '-color_primaries', 'bt2020',
+            '-color_trc', 'smpte2084',
             '-cbr','0',
             '-rc', 'vbr',
             '-bf', '4',
             '-spatial_aq', '1',
             '-temporal_aq', '1',
-            #'-look_ahead', '1',
             '-metadata:s:v:0', 'color_range=tv',
             args.output
         ])
