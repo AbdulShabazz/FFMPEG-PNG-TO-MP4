@@ -142,7 +142,7 @@ python composite_passes.py --output output_composite.mp4 --framerate 30
 Optional arguments
 
 ```
---passes Unlit:normal,LightingOnly:multiply,DetailLightingOnly:screen,PathTracer:overlay,ReflectionsOnly:screen
+--passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,Reflections:overlay
 ```
 
 Custom passes
