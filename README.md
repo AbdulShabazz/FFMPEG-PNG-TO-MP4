@@ -142,7 +142,7 @@ This script composites Unreal Engine render passes using FFmpeg,
 handling missing passes and missing frames.
 
 Usage:
-    python composite_passes.py --output 'output_composite.mp4' --framerate 120 --ext 'png' --start_index 1481294 --last_index 1488519 --resolution '1920x1080'
+    python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080
 
 Optional Arguments:
     --output: Name of the output composite video file (default: output_composite.mp4)
@@ -164,10 +164,10 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Composite Unreal Engine render passes using FFmpeg.")
     parser.add_argument('--output', type=str, default='output_composite.mp4', help='Name of the output composite video file (e.g. "output_composite.mp4").')  
     parser.add_argument('--ext', type=str, default='png', help='File extension type of the input sequence for the output composite video file (e.g., "png").')
-    parser.add_argument('--start_index', type=int, default=1, help='Start index for the composite sequence (e.g., 1).')  
-    parser.add_argument('--last_index', type=int, default=1, help='Last index for the composite sequence (e.g., 1)')
-    parser.add_argument('--framerate', type=int, default=120, help='[Optional] Frame rate of the input and output videos (e.g., 60).')
-    parser.add_argument('--crf', type=int, default=0, help='[Optional] output video compression ratio factor (i.e., strength) (e.g., --crf 0). Valid Range: 0 to 51')
+    parser.add_argument('--start_index', type=str, default='1', help='Start index for the composite sequence (e.g., 1).')  
+    parser.add_argument('--last_index', type=str, default='1', help='Last index for the composite sequence (e.g., 1)')
+    parser.add_argument('--framerate', type=str, default='120', help='[Optional] Frame rate of the input and output videos (e.g., 60).')
+    parser.add_argument('--crf', type=str, default='0', help='[Optional] output video compression ratio factor (i.e., strength) (e.g., --crf 0). Valid Range: 0 to 51')
     parser.add_argument('--pix_fmt', type=str, default='yuv420p10le', help='[Optional] Defines how pixel data is stored and represented in video frames (e.g., --pix_fmt yuv420p10le). Valid Range: yuv420p yuv422p yuv44p rgb24 yuva420p yuv420p10le')
     parser.add_argument('--resolution', type=str, default='1920x1080', help='[Optional] Resolution of the blank frames (e.g., "1920x1080").')
     parser.add_argument('--passes', type=str, default='', help='[Optional] ffmpeg supported, comma-separated list of passes with blend modes in the format PassName:BlendMode. Example: "Unlit:normal,LightingOnly:multiply"')
@@ -200,7 +200,7 @@ def extract_frame_number(current_dir,filename, pass_name,file_ext):
     except ValueError:
         return None
 
-def fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolution, file_ext):
+def fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolution, file_ext, framerate):
     frames = get_all_frames(current_dir,pass_name,file_ext)
     existing_frames = set()
     for f in frames:
@@ -222,7 +222,7 @@ def fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolut
                 # Create a blank frame using FFmpeg
                 subprocess.run([
                     'ffmpeg', '-f', 'lavfi',
-                    '-i', f'color=black:s={resolution}:d=1/{args.framerate}',
+                    '-i', f'color=black:s={resolution}:d=1/{framerate}',
                     '-vframes', '1',
                     target_frame,
                     '-y'
@@ -264,13 +264,15 @@ def main():
         sys.exit(1)
     
     if args.start_index:
-        start_index = int(args.start_index)
+        start_index_w = args.start_index
+        start_index_z = int(args.start_index)
     else:
         print("Error: Sequence start index (e.g., --start_index 1481294) not provided.")
         sys.exit(1)
 
     if args.last_index:
-        last_frame = args.last_index
+        last_frame_w = args.last_index
+        last_frame_z = int(args.last_index)
     else:
         print("Error: Sequence start index (e.g., --last_index 1481294) not provided.")
         sys.exit(1)
@@ -278,6 +280,7 @@ def main():
     resolution = args.resolution
     crf = args.crf
     pix_fmt = args.pix_fmt
+    framerate = args.framerate
 
     # Default passes and blend modes if not provided
     if args.passes:
@@ -293,7 +296,9 @@ def main():
 
     current_dir = Path.cwd().name
 
-    available_passes = get_available_passes(current_dir,passes_config,start_index,file_ext,last_frame)
+    print('\nInitializing...\n')
+
+    available_passes = get_available_passes(current_dir,passes_config,start_index_z,file_ext,last_frame_z)
 
     if 'Unlit' not in available_passes:
         print("Error: 'Unlit' pass is required as the base layer but is missing.")
@@ -310,11 +315,11 @@ def main():
             if current_max > max_frame:
                 max_frame = current_max
 
-    print(f"Total Frames Detected: {max_frame}")
+    print(f"\nTotal Frames Detected: {max_frame}\n")
 
     # Fill missing frames for each available pass
     for pass_name in available_passes:
-        fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolution, file_ext)
+        fill_missing_frames(current_dir, pass_name, start_index_z, last_frame_z, resolution, file_ext, framerate)
 
     # Construct FFmpeg inputs
     ffmpeg_inputs = []
@@ -325,40 +330,55 @@ def main():
         "PathTracer",
         "ReflectionsOnly"
     ]
-    seq_len = len(str(max_frame))
+    seq_len = len(last_frame_w)
     # Unreal Engine image sequences usually include the name of the current directory folder...
     for pass_name in total_passes_ordered:
         if pass_name in available_passes:
             ffmpeg_inputs.extend([
-                "-framerate", str(args.framerate),
+                "-start_number", start_index_w,
+                "-framerate", framerate,
                 "-i", f"{current_dir}.{pass_name}.%0{seq_len}d.{file_ext}"
             ])
 
     # Construct filter_complex
     filter_complex = construct_filter_complex(available_passes, total_passes_ordered, pix_fmt)
 
-    print("Constructed filter_complex:")
-    print(filter_complex)
+    print("\nConstructed filter_complex:")
+    print(f"\n{filter_complex}\n")
 
     # Construct the final FFmpeg command
     ffmpeg_command = [
         'ffmpeg'
     ] + ffmpeg_inputs + [
-        '-filter_complex', filter_complex,
-        '-map', '[final]',
+        '-filter_complex', f'"{filter_complex}"',
+        '-map', '"[final]"',
         '-c:v', 'libx265',
-        '-crf', str(args.crf),
-        '-pix_fmt', args.pix_fmt,
+        '-crf', crf,
+        '-pix_fmt', pix_fmt,
         args.output
     ]
 
-    print("Running FFmpeg command...")
-    print(' '.join(ffmpeg_command))
+    ffmpeg_command = ' '.join(ffmpeg_command)
 
-    # Execute FFmpeg
-    subprocess.run(ffmpeg_command)
+    print("Running FFmpeg command:\n")
 
-    print(f"Composite video created as {args.output}")
+    print(f"{ffmpeg_command}\n")
+
+    try:
+        # Execute FFmpeg
+        ret = subprocess.run(ffmpeg_command)
+        # if ret.returncode != 0:
+        #    print(f"Error: {ret.stderr}")
+        #    sys.exit(1)
+        print(f"Composite video successfully created as {args.output}")
+    except subprocess.CalledProcessError as e:
+        print(f'An error occurred while executing the command:{e}')
+        print(f'Stdout: {e.stdout}')
+        print(f'Stderr: {e.stderr}')
+    except FileNotFoundError:
+        print('Command not found. Please ensure the command is correct and command-support is installed.')
+    except Exception as e:
+        print(f'An unexpected error occurred: {e}')
 
 if __name__ == "__main__":
     main()
