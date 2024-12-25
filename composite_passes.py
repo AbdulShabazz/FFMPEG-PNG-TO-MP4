@@ -26,15 +26,15 @@ from pathlib import Path
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Composite Unreal Engine render passes using FFmpeg.")
-    parser.add_argument('--output', type=str, default='output_composite.mp4', help='Name of the output composite video file (e.g. "output_composite.mp4").')  
-    parser.add_argument('--ext', type=str, default='png', help='File extension type of the input sequence for the output composite video file (e.g., "png").')
-    parser.add_argument('--start_index', type=str, default='1', help='Start index for the composite sequence (e.g., 1).')  
-    parser.add_argument('--last_index', type=str, default='1', help='Last index for the composite sequence (e.g., 1)')
-    parser.add_argument('--framerate', type=str, default='120', help='[Optional] Frame rate of the input and output videos (e.g., 60).')
-    parser.add_argument('--crf', type=str, default='0', help='[Optional] output video compression ratio factor (i.e., strength) (e.g., --crf 0). Valid Range: 0 to 51')
+    parser.add_argument('--output', type=str, default='output_composite.mp4', help='Name of the output composite video file (e.g., --output output_composite.mp4).')  
+    parser.add_argument('--ext', type=str, default='png', help='File extension type of the input sequence for the output composite video file (e.g., --ext png).')
+    parser.add_argument('--start_index', type=str, default='1', help='Start index for the composite sequence (e.g., --start_index 1).')  
+    parser.add_argument('--last_index', type=str, default='1', help='Last index for the composite sequence (e.g., --last_index 1)')
+    parser.add_argument('--framerate', type=str, default='120', help='[Optional] Frame rate of the input and output videos (e.g., --framerate 60).')
+    parser.add_argument('--crf', type=str, default='0', help='[Optional] output video compression ratio factor (i.e., compression strength) (e.g., --crf 0). Valid Range: 0 to 51')
     parser.add_argument('--pix_fmt', type=str, default='yuv420p10le', help='[Optional] Defines how pixel data is stored and represented in video frames (e.g., --pix_fmt yuv420p10le). Valid Range: yuv420p yuv422p yuv44p rgb24 yuva420p yuv420p10le')
-    parser.add_argument('--resolution', type=str, default='1920x1080', help='[Optional] Resolution of the blank frames (e.g., "1920x1080").')
-    parser.add_argument('--passes', type=str, default='', help='[Optional] ffmpeg supported, comma-separated list of passes with blend modes in the format PassName:BlendMode. Example: "Unlit:normal,LightingOnly:multiply"')
+    parser.add_argument('--resolution', type=str, default='1920x1080', help='[Optional] Resolution (also for the blank frames) (e.g., --resolution 1920x1080).')
+    parser.add_argument('--passes', type=str, default='', help='[Optional] ffmpeg supported, comma-separated list of passes with blend modes in the format PassName:BlendMode. Example: --passes "Unlit:normal,LightingOnly:multiply"')
     parser.add_argument('--gpu', type=str, default='', help='[Optional] gpu flag (e.g., --gpu 1).')
     return parser.parse_args()
 
@@ -94,7 +94,7 @@ def fill_missing_frames(current_dir, pass_name, start_index, last_frame, resolut
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 print(f"Created blank frame: {target_frame}")
 
-def construct_filter_complex(available_passes, total_passes_ordered, pix_fmt):
+def construct_filter_complex(available_passes, total_passes_ordered, pix_fmt, resolution):
     """
     Constructs the filter_complex string based on available passes and their blend modes.
     Assumes 'Unlit' is the base layer.
@@ -107,10 +107,10 @@ def construct_filter_complex(available_passes, total_passes_ordered, pix_fmt):
         if pass_name in available_passes:
             blend_mode = available_passes[pass_name]
             if pass_name.lower() == 'unlit':
-                filters.append(f"[{idx}:v]format=rgba, setpts=PTS-STARTPTS [base];")
+                filters.append(f"[{idx}:v]format={pix_fmt}, scale={resolution}, setpts=PTS-STARTPTS [base];")
                 current_output = "[base]"
             else:
-                filters.append(f"[{idx}:v]format=rgba, setpts=PTS-STARTPTS [{pass_name.lower()}];")
+                filters.append(f"[{idx}:v]format={pix_fmt}, scale={resolution}, setpts=PTS-STARTPTS [{pass_name.lower()}];")
                 tmp_label = f"tmp{idx}"
                 filters.append(f"{current_output}[{pass_name.lower()}]blend=all_mode={blend_mode} [{tmp_label}];")
                 current_output = f"[{tmp_label}]"
@@ -142,7 +142,7 @@ def main():
         print("Error: Sequence start index (e.g., --last_index 1481294) not provided.")
         sys.exit(1)
 
-    ongpu = args.gpu
+    gpu = args.gpu
 
     resolution = args.resolution
     crf = args.crf
@@ -208,7 +208,7 @@ def main():
             ])
 
     # Construct filter_complex
-    filter_complex = construct_filter_complex(available_passes, total_passes_ordered, pix_fmt)
+    filter_complex = construct_filter_complex(available_passes, total_passes_ordered, pix_fmt, resolution)
 
     print("\nConstructed filter_complex:")
     print(f"\n{filter_complex}\n")
@@ -218,25 +218,27 @@ def main():
         'ffmpeg'
     ] + ffmpeg_inputs
 
-    if len(ongpu) > 0:
+    if len(gpu) > 0:
         print("\nGPU Processing enabled\n")
+        pix_fmt = "p010le"
         ffmpeg_command.extend([
             '-filter_complex', f'"{filter_complex}"',
             '-map', '"[final]"',
             '-c:v', 'hevc_nvenc',
             '-preset', 'slow',
             '-qp','0',
-            '-pix_fmt', 'p010le',
+            '-pix_fmt', pix_fmt,
             '-profile:v', 'main10',
             '-colorspace', 'bt2020nc',
-            '-color_primaries', 'bt2020',
-            '-color_trc', 'smpte2084',
+            #'-color_primaries', 'bt2020',
+            #'-color_trc', 'smpte2084',
+            #'-color_range', '2',
             '-cbr','0',
             '-rc', 'vbr',
             '-bf', '4',
             '-spatial_aq', '1',
             '-temporal_aq', '1',
-            '-look_ahead', '1',
+            #'-look_ahead', '1',
             '-metadata:s:v:0', 'color_range=tv',
             args.output
         ])
