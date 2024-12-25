@@ -171,6 +171,7 @@ def parse_arguments():
     parser.add_argument('--pix_fmt', type=str, default='yuv420p10le', help='[Optional] Defines how pixel data is stored and represented in video frames (e.g., --pix_fmt yuv420p10le). Valid Range: yuv420p yuv422p yuv44p rgb24 yuva420p yuv420p10le')
     parser.add_argument('--resolution', type=str, default='1920x1080', help='[Optional] Resolution of the blank frames (e.g., "1920x1080").')
     parser.add_argument('--passes', type=str, default='', help='[Optional] ffmpeg supported, comma-separated list of passes with blend modes in the format PassName:BlendMode. Example: "Unlit:normal,LightingOnly:multiply"')
+    parser.add_argument('--gpu', type=str, default='', help='[Optional] gpu flag (e.g., --gpu 1).')
     return parser.parse_args()
 
 def get_available_passes(current_dir,passes_config,start_index,file_ext,last_frame):
@@ -277,6 +278,8 @@ def main():
         print("Error: Sequence start index (e.g., --last_index 1481294) not provided.")
         sys.exit(1)
 
+    ongpu = args.gpu
+
     resolution = args.resolution
     crf = args.crf
     pix_fmt = args.pix_fmt
@@ -349,14 +352,39 @@ def main():
     # Construct the final FFmpeg command
     ffmpeg_command = [
         'ffmpeg'
-    ] + ffmpeg_inputs + [
-        '-filter_complex', f'"{filter_complex}"',
-        '-map', '"[final]"',
-        '-c:v', 'libx265',
-        '-crf', crf,
-        '-pix_fmt', pix_fmt,
-        args.output
-    ]
+    ] + ffmpeg_inputs
+
+    if len(ongpu) > 0:
+        print("\nGPU Processing enabled\n")
+        ffmpeg_command.extend([
+            '-filter_complex', f'"{filter_complex}"',
+            '-map', '"[final]"',
+            '-c:v', 'hevc_nvenc',
+            '-preset', 'slow',
+            '-qp','0',
+            '-pix_fmt', 'p010le',
+            '-profile:v', 'main10',
+            '-colorspace', 'bt2020nc',
+            '-color_primaries', 'bt2020',
+            '-color_trc', 'smpte2084',
+            '-cbr','0',
+            '-rc', 'vbr',
+            '-bf', '4',
+            '-spatial_aq', '1',
+            '-temporal_aq', '1',
+            '-look_ahead', '1',
+            '-metadata:s:v:0', 'color_range=tv',
+            args.output
+        ])
+    else:
+        ffmpeg_command.extend([
+            '-filter_complex', f'"{filter_complex}"',
+            '-map', '"[final]"',
+            '-c:v', 'libx265',
+            '-crf', crf,
+            '-pix_fmt', pix_fmt,
+            args.output
+        ])
 
     ffmpeg_command = ' '.join(ffmpeg_command)
 
