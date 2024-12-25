@@ -153,15 +153,24 @@ def main():
     pix_fmt = args.pix_fmt
     framerate = args.framerate
 
+    total_passes_ordered = [
+        "Unlit",
+        "LightingOnly",
+        "DetailLightingOnly",
+        "PathTracer",
+        "ReflectionsOnly"
+    ]
+
     # Default passes and blend modes if not provided
     if args.passes:
         passes_config = args.passes.split(',')
+        total_passes_ordered = [ u.split(':')[0] for u in passes_config ]
     else:
         passes_config = [
             "Unlit:overlay",
-            "PathTracer:lighten",
+            "PathTracer:multiply",
             "DetailLightingOnly:overlay",
-            "LightingOnly:multiply",
+            "LightingOnly:lighten",
             "ReflectionsOnly:overlay"
         ]
 
@@ -194,13 +203,6 @@ def main():
 
     # Construct FFmpeg inputs
     ffmpeg_inputs = []
-    total_passes_ordered = [
-        "Unlit",
-        "PathTracer",
-        "DetailLightingOnly",
-        "LightingOnly",
-        "ReflectionsOnly"
-    ]
     seq_len = len(last_frame_w)
     # Unreal Engine image sequences usually include the name of the current directory folder...
     for pass_name in total_passes_ordered:
