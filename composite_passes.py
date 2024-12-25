@@ -196,9 +196,9 @@ def main():
     ffmpeg_inputs = []
     total_passes_ordered = [
         "Unlit",
-        "LightingOnly",
-        "DetailLightingOnly",
         "PathTracer",
+        "DetailLightingOnly",
+        "LightingOnly",
         "ReflectionsOnly"
     ]
     seq_len = len(last_frame_w)
