@@ -131,26 +131,28 @@ The Python script `composite_passes.py` provides a more flexible and robust appr
 * **FFmpeg Installed:** As with the batch script, ensure FFmpeg is installed and added to the system's PATH.
 * **Python Libraries:** The script uses standard libraries (os, subprocess, glob). No additional installations are required.
 
-Consistent Naming Convention: Render passes should follow a naming pattern like `PassName_0001.png, PassName_0002.png`, etc.
-
-Run the script
+Run the script (single sequence encoding pipeline)
 
 ```
-python composite_passes.py --output output_composite.mp4 --framerate 30
+python composite_passes.py --output output_composite.mp4 --framerate 30 --pass PathTracer:overlay
 ```
 
-Optional arguments
+Consistent Naming Convention: Render passes should follow a naming pattern like `PathTracer_0001.png, PathTracer_0002.png`, etc.
+
+Optional arguments (multiple sequence encoding)
 
 ```
 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,Reflections:overlay
 ```
 
+Consistent Naming Convention: Render passes should follow a naming pattern like `Unlit_0001.png, Unlit_0002.png,...`, `PathTracer_0001.png, PathTracer_0002.png,...`, etc.
+
 Custom passes
 
 ```
-python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080
+python composite_passes.py --output output_composite.mp4 --framerate 120 --ext png --start_index 1481294 --last_index 1488519 --resolution 1920x1080 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,ReflectionsOnly:overlay
 ```
 On the gpu
 ```
-python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 8798040 --last_index 8804833 --resolution 2160x1080
+python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 8798040 --last_index 8804833 --resolution 2160x1080 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,ReflectionsOnly:overlay
 ```
