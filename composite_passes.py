@@ -143,7 +143,7 @@ def main():
         last_frame_w = args.last_index
         last_frame_z = int(args.last_index)
     else:
-        print("Error: Sequence start index (e.g., --last_index 1481294) not provided.")
+        print("Error: Sequence last index (e.g., --last_index 1481294) not provided.")
         sys.exit(1)
 
     gpu = args.gpu
@@ -226,9 +226,9 @@ def main():
 
     if len(available_passes) > 1:
         ffmpeg_command.extend([
-        '-filter_complex', f'"{filter_complex}"',
-        '-map', '"[final]"',
-     ])
+            '-filter_complex', f'"{filter_complex}"',
+            '-map', '"[final]"',
+        ])
 
     if len(gpu) > 0:
         print("\nGPU Processing enabled\n")
