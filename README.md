@@ -114,7 +114,7 @@ output.mp4
 
 Feel free to adjust these parameters based on your specific needs and the desired balance between quality, encoding speed, and file size.
 
-## Python Script
+## Python Scripts
 
 ### Overview
 
