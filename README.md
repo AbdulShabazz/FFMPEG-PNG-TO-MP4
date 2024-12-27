@@ -137,7 +137,7 @@ Run the script (single sequence encoding pipeline)
 python composite_passes.py --output output_composite.mp4 --framerate 30 --pass PathTracer:overlay
 ```
 
-Consistent Naming Convention: Render passes should follow a naming pattern like `PathTracer_0001.png, PathTracer_0002.png`, etc.
+Consistent Naming Convention: Render passes should follow a naming pattern like `[folder_name].PathTracer_0001.png, [folder_name].PathTracer_0002.png`, etc.
 
 Optional arguments (multiple sequence encoding)
 
@@ -145,7 +145,7 @@ Optional arguments (multiple sequence encoding)
 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,Reflections:overlay
 ```
 
-Consistent Naming Convention: Render passes should follow a naming pattern like `Unlit_0001.png, Unlit_0002.png,...`, `PathTracer_0001.png, PathTracer_0002.png,...`, etc.
+Consistent Naming Convention: Render passes should follow a naming pattern like `[folder_name].Unlit_0001.png, [folder_name].Unlit_0002.png,...`, `[folder_name].PathTracer_0001.png, [folder_name].PathTracer_0002.png,...`, etc.
 
 Custom passes
 
