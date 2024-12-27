@@ -156,3 +156,11 @@ On the gpu
 ```
 python composite_passes.py --gpu 1 --output output_composite.mp4 --framerate 120 --ext png --start_index 8798040 --last_index 8804833 --resolution 2160x1080 --passes Unlit:overlay,PathTracer:lighten,DetailLightingOnly:overlay,LightingOnly:multiply,ReflectionsOnly:overlay
 ```
+Single-pass example
+```
+python single_pass.py --gpu 1 --output video.mp4 --i "Scene_1_04.%07d.exr" --start_index 9792843 --last_index 9805853 --framerate 120 --crf 0 --pix_fmt p010le
+```
+Expanded parameters to ffmpeg
+```
+ffmpeg -start_number 9792843 -framerate 120 -i Scene_1_04.%07d.exr -c:v hevc_nvenc -preset slow -qp 0 -framerate 120 -pix_fmt p010le -profile:v main10 -colorspace bt2020nc -color_primaries bt2020 -color_trc smpte2084 -cbr 0 -rc vbr -bf 4 -spatial_aq 1 -temporal_aq 1 -metadata:s:v:0 color_range=tv video.mp4
+```
