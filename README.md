@@ -118,7 +118,7 @@ Feel free to adjust these parameters based on your specific needs and the desire
 
 ### Overview
 
-The Python script `composite_passes.py` provides a more flexible and robust approach to handling missing passes and frames. It performs the following:
+The Python scripts `composite_passes.py`, `single_pass.py` provide a more flexible and robust approach to handling missing passes and frames. It performs the following:
 
 **Detect Available Passes:** Identifies which render passes are present in the specified directory.
 * **Fill Missing Frames:** For each pass, it ensures that all frames are present by duplicating the previous frame or inserting a blank frame using FFmpeg.
