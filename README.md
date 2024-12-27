@@ -1,5 +1,5 @@
 # FFMPEG-PNG-TO-MP4
-Commandline to convert PNG series to MPEG4 video.
+Commandline to convert image sequence to MPEG4 video.
 
 ## FFmpeg Usage Example
 
