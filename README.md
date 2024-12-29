@@ -164,3 +164,7 @@ Expanded parameters to ffmpeg
 ```
 ffmpeg -start_number 9792843 -framerate 120 -i Scene_1_04.%07d.exr -c:v hevc_nvenc -preset slow -qp 0 -framerate 120 -pix_fmt p010le -profile:v main10 -colorspace bt2020nc -color_primaries bt2020 -color_trc smpte2084 -cbr 0 -rc vbr -bf 4 -spatial_aq 1 -temporal_aq 1 -metadata:s:v:0 color_range=tv video.mp4
 ```
+Ffmpeg (cpu) upscale AVi to 4K (gpu encode) HDR
+```
+ffmpeg -i 2024-12-28_10-53-49.avi -vf "scale=4096:2048:flags=lanczos" -c:v hevc_nvenc -preset slow -profile:v main10 -rc:v vbr_hq -cq:v 18 -b:v 0 -pix_fmt p010le -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc 4K_rec2020_Movie_17.mp4
+```
